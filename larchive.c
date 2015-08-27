@@ -45,7 +45,7 @@ static void larchive_extract(lua_State *L) {
 
     arch = archive_read_new();
     archive_read_support_format_all(arch);
-    archive_write_add_filter_none(arch);
+    archive_read_support_filter_all(arch);
 
     arch_writer = archive_write_disk_new();
     archive_write_disk_set_options(arch_writer, flags);
