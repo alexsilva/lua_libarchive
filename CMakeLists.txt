@@ -6,8 +6,8 @@ set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=c99")
 set(SOURCE_FILES
     larchive.c larchive.h)
 
-include_directories(${LIBARCHIVE_INCLUDE_DIR})
-link_directories(${LIBARCHIVE_LIBRARY_DIR})
+include_directories(${LIBARCHIVE_INCLUDE_DIR} ${LUA_INCLUDE_DIR})
+link_directories(${LIBARCHIVE_LIBRARY_DIR} ${LUA_LIBRARY_PATH})
 
 add_library(larchive SHARED ${SOURCE_FILES})
 target_link_libraries(larchive archive)
