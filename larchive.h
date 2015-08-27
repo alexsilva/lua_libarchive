@@ -11,6 +11,6 @@
 #define LUA_LIBRARY __attribute__((visibility("default")))
 #endif
 
-int LUA_LIBRARY lua_larchive(lua_State *L);
+int LUA_LIBRARY lua_larchiveopen(lua_State *L);
 
 #endif //LUA_LIBARCHIVE_LARCHIVE_H
