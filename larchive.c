@@ -5,6 +5,9 @@
 #include <lauxlib.h>
 #include <archive.h>
 #include <stdlib.h>
+#ifdef __linux__
+#include <linux/limits.h>
+#endif
 #include <archive_entry.h>
 #include "larchive.h"
 #include "lua.h"
@@ -34,8 +37,18 @@ static int write_data(struct archive *arch, struct archive *arch_writer, struct 
     }
 }
 
+static void archive_entry_change_dir(char *basedir, struct archive *arch, struct archive_entry *entry) {
+    const char* path = archive_entry_pathname( entry );
+
+    char filepath[PATH_MAX + 1];
+    join_path(&filepath[0], basedir, path);
+
+    archive_entry_set_pathname(entry, filepath);
+}
+
 static void larchive_extract(lua_State *L) {
     char *filename = luaL_check_string(L, 1);
+    char *basedir = luaL_check_string(L, 2);
 
     struct archive *arch;
     struct archive *arch_writer;
@@ -63,6 +76,14 @@ static void larchive_extract(lua_State *L) {
     arch_extraction.code = ARCHIVE_EXT_UNDEFINED;
     arch_extraction.msg  = "undefined";
 
+    if (mkdirs(basedir, UNZIP_DMODE)) {
+        arch_extraction.code = ARCHIVE_EXT_ERROR;
+        arch_extraction.msg = "creating base directory";
+        // lua push status
+        lua_pushnumber(L, arch_extraction.code);
+        lua_pushstring(L, (char *) arch_extraction.msg);
+        return; // fatal error
+    }
     if ((retval = archive_read_open_filename(arch, filename, 10240)) != 0) {
         arch_extraction.msg = archive_error_string(arch);
         arch_extraction.code = ARCHIVE_EXT_ERROR;
@@ -87,6 +108,9 @@ static void larchive_extract(lua_State *L) {
             arch_extraction.code = retval;
             break;
         }
+
+        archive_entry_change_dir(basedir, arch, entry);
+
         retval = archive_write_header(arch_writer, entry);
         if (retval < ARCHIVE_OK) {
             fprintf(stderr, "%s\n", archive_error_string(arch_writer));
