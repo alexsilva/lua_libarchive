@@ -255,7 +255,11 @@ static void lzip_close(lua_State *L) {
     struct archive *arch = get_archive_ref(L, 1);
     const char *msg = "OK";
     int error_num = 0;
-    if (archive_write_close(arch) != ARCHIVE_OK || archive_write_free(arch) != ARCHIVE_OK) {// error check!
+
+    int close_code = archive_write_close(arch);
+    int free_code = archive_write_free(arch);
+
+    if (close_code != ARCHIVE_OK || free_code != ARCHIVE_OK) {// error check!
         msg = archive_error_string(arch);
         error_num = archive_errno(arch);
     }
