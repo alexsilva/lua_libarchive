@@ -24,7 +24,7 @@
 
 struct archive_st {
     int code;
-    char *msg;
+    const char *msg;
 };
 
 #define PATH_SEP '/'

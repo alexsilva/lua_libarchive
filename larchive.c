@@ -241,7 +241,7 @@ static struct archive_st larchive_write_file(struct archive *arch, char *filenam
     len = read(fd, buff, sizeof(buff));
 
     while ( len > 0 ) {
-        archive_write_data(arch, buff, len);
+        archive_write_data(arch, buff, (size_t) len);
         len = read(fd, buff, sizeof(buff));
     }
     close(fd);
@@ -274,7 +274,7 @@ static void lzip_add(lua_State *L) {
     struct archive_st arch_st = larchive_write_file(arch, filepath, filedest);
 
     lua_pushnumber(L, arch_st.code);
-    lua_pushstring(L, arch_st.msg);
+    lua_pushstring(L, (char *) arch_st.msg);
 }
 
 
