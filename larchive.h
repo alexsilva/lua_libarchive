@@ -22,7 +22,7 @@
 #define ARCHIVE_EXT_UNDEFINED -1
 
 
-struct archive_extraction {
+struct archive_st {
     int code;
     const char *msg;
 };

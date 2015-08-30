@@ -38,7 +38,7 @@ static struct archive * get_archive_ref(lua_State *L, int pos) {
 }
 
 
-static int write_data(struct archive *arch, struct archive *arch_writer, struct archive_extraction *arch_extraction) {
+static int write_data(struct archive *arch, struct archive *arch_writer, struct archive_st *arch_st) {
     int retval;
     const void *buff;
     size_t size;
@@ -46,18 +46,18 @@ static int write_data(struct archive *arch, struct archive *arch_writer, struct 
     while (1) {
         retval = archive_read_data_block(arch, &buff, &size, &offset);
         if (retval == ARCHIVE_EOF) {
-            arch_extraction->code = ARCHIVE_OK;
+            arch_st->code = ARCHIVE_OK;
             return 1;
         }
         if (retval < ARCHIVE_OK) {
-            arch_extraction->code = retval;
-            arch_extraction->msg = archive_error_string(arch);
+            arch_st->code = retval;
+            arch_st->msg = archive_error_string(arch);
             return retval < ARCHIVE_WARN ? 0 : 1; // 0 == error
         }
         retval = archive_write_data_block(arch_writer, buff, size, offset);
         if (retval < ARCHIVE_OK) {
-            arch_extraction->code = retval;
-            arch_extraction->msg = archive_error_string(arch_writer);
+            arch_st->code = retval;
+            arch_st->msg = archive_error_string(arch_writer);
             return retval < ARCHIVE_WARN ? 0 : 1;
         }
     }
@@ -79,7 +79,7 @@ static void larchive_extract(lua_State *L) {
     struct archive *arch;
     struct archive *arch_writer;
     struct archive_entry *entry;
-    struct archive_extraction arch_extraction;
+    struct archive_st arch_st;
 
     int flags;
     int retval;
@@ -99,39 +99,39 @@ static void larchive_extract(lua_State *L) {
     archive_write_disk_set_standard_lookup(arch_writer);
 
     // initial state
-    arch_extraction.code = ARCHIVE_EXT_UNDEFINED;
-    arch_extraction.msg  = "undefined";
+    arch_st.code = ARCHIVE_EXT_UNDEFINED;
+    arch_st.msg  = "undefined";
 
     if (mkdirs(basedir, UNZIP_DMODE)) {
-        arch_extraction.code = ARCHIVE_EXT_ERROR;
-        arch_extraction.msg = "creating base directory";
+        arch_st.code = ARCHIVE_EXT_ERROR;
+        arch_st.msg = "creating base directory";
         // lua push status
-        lua_pushnumber(L, arch_extraction.code);
-        lua_pushstring(L, (char *) arch_extraction.msg);
+        lua_pushnumber(L, arch_st.code);
+        lua_pushstring(L, (char *) arch_st.msg);
         return; // fatal error
     }
     if ((retval = archive_read_open_filename(arch, filename, 10240)) != 0) {
-        arch_extraction.msg = archive_error_string(arch);
-        arch_extraction.code = ARCHIVE_EXT_ERROR;
+        arch_st.msg = archive_error_string(arch);
+        arch_st.code = ARCHIVE_EXT_ERROR;
 
         // lua push status
-        lua_pushnumber(L, arch_extraction.code);
-        lua_pushstring(L, (char *) arch_extraction.msg);
+        lua_pushnumber(L, arch_st.code);
+        lua_pushstring(L, (char *) arch_st.msg);
         return; // fatal error
     }
     while (1) {
         retval = archive_read_next_header(arch, &entry);
         if (retval == ARCHIVE_EOF) {
-            arch_extraction.code = ARCHIVE_EXT_SUCCESS;
-            arch_extraction.msg = "OK";
+            arch_st.code = ARCHIVE_EXT_SUCCESS;
+            arch_st.msg = "OK";
             break;
         }
         if (retval < ARCHIVE_OK) {
             fprintf(stderr, "%s\n", archive_error_string(arch));
         }
         if (retval < ARCHIVE_WARN) {
-            arch_extraction.msg = archive_error_string(arch);
-            arch_extraction.code = retval;
+            arch_st.msg = archive_error_string(arch);
+            arch_st.code = retval;
             break;
         }
 
@@ -141,7 +141,7 @@ static void larchive_extract(lua_State *L) {
         if (retval < ARCHIVE_OK) {
             fprintf(stderr, "%s\n", archive_error_string(arch_writer));
         }
-        else if (archive_entry_size(entry) > 0 && !write_data(arch, arch_writer, &arch_extraction)) {
+        else if (archive_entry_size(entry) > 0 && !write_data(arch, arch_writer, &arch_st)) {
             break;  // error writing data...
         }
         retval = archive_write_finish_entry(arch_writer);
@@ -149,8 +149,8 @@ static void larchive_extract(lua_State *L) {
             fprintf(stderr, "%s\n", archive_error_string(arch_writer));
         }
         if (retval < ARCHIVE_WARN) {
-            arch_extraction.msg = archive_error_string(arch_writer);
-            arch_extraction.code = retval;
+            arch_st.msg = archive_error_string(arch_writer);
+            arch_st.code = retval;
             break;
         }
     }
@@ -160,8 +160,8 @@ static void larchive_extract(lua_State *L) {
     archive_write_free(arch_writer);
 
     // lua push status
-    lua_pushnumber(L, arch_extraction.code);
-    lua_pushstring(L, (char *) arch_extraction.msg);
+    lua_pushnumber(L, arch_st.code);
+    lua_pushstring(L, (char *) arch_st.msg);
 }
 
 static void lzip_open(lua_State *L) {
@@ -257,7 +257,6 @@ static void lzip_add(lua_State *L) {
     char *filedest  = lua_getstring(L, lobj);
 
     larchive_write_file(arch, filepath, filedest);
-
 }
 
 
