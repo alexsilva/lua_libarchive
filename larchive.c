@@ -8,9 +8,35 @@
 #ifdef __linux__
 #include <linux/limits.h>
 #endif
+#ifndef lua_next
+#include "lapi_missing.h"
+#endif
+#ifndef O_BINARY
+#define O_BINARY 0
+#endif
 #include <archive_entry.h>
+#include <fcntl.h>
+#include <libgen.h>
 #include "larchive.h"
 #include "lua.h"
+
+
+char *string_copy(const char *str) {
+    size_t len = strlen(str);
+    char *x = (char *) malloc(len + 1); /* 1 for the null terminator */
+    if(!x) return NULL; /* malloc could not allocate memory */
+    memcpy(x,str,len+1); /* copy the string into the new buffer */
+    return x;
+}
+
+static struct archive * get_archive_ref(lua_State *L, int pos) {
+    lua_Object lobj = lua_getparam(L, pos);
+    if (!lua_isuserdata(L, lobj)) {
+        lua_error(L, "archive ref(1) is required!");
+    }
+    return lua_getuserdata(L, lobj);
+}
+
 
 static int write_data(struct archive *arch, struct archive *arch_writer, struct archive_extraction *arch_extraction) {
     int retval;
@@ -138,8 +164,108 @@ static void larchive_extract(lua_State *L) {
     lua_pushstring(L, (char *) arch_extraction.msg);
 }
 
+static void lzip_open(lua_State *L) {
+    char *filepath = luaL_check_string(L, 1);
+    struct archive *arch;
+
+    if (!(arch = archive_write_new())) {
+        lua_pushnumber(L, -1);
+        lua_pushstring(L, "unable to start a new instance of zip.");
+        return; // fatal error
+    }
+    archive_write_add_filter_lzip(arch);
+    archive_write_set_format_zip(arch);
+
+    if (archive_write_open_filename(arch, filepath) != ARCHIVE_OK) {
+        const char *error_string = archive_error_string(arch);
+        int error_num = archive_errno(arch);
+
+        lua_pushnumber(L, error_num);
+        lua_pushstring(L, (char *) error_string);
+        return; // fatal error
+    }
+    lua_pushnumber(L, 0);
+    lua_pushuserdata(L, arch); // new file
+}
+
+static int larchive_write_file(struct archive *arch, char *filename, char *filedest) {
+    struct stat st;
+    char buff[8192];
+    struct archive_entry *entry;
+    int len;
+    int fd;
+
+    stat(filename, &st);
+
+    char *flname = NULL;
+    char *zip_basename = NULL;
+
+    if (!filedest) {
+        flname = string_copy(filename);
+        if (!flname) {
+            return -1;
+        }
+        zip_basename = basename(flname);
+        if (!zip_basename) {
+            return -1;
+        }
+    } else {
+        zip_basename = filedest;
+    }
+    entry = archive_entry_new(); // Note 2
+    archive_entry_set_pathname(entry, zip_basename);
+    archive_entry_set_size(entry, st.st_size); // Note 3
+    archive_entry_set_filetype(entry, AE_IFREG);
+    archive_entry_set_perm(entry, 0644);
+    archive_write_header(arch, entry);
+
+    if ((fd = open(filename, O_RDONLY | O_BINARY)) == -1) {
+        if (flname) free(flname); // free!
+        return -1;
+    }
+    len = read(fd, buff, sizeof(buff));
+
+    while ( len > 0 ) {
+        archive_write_data(arch, buff, len);
+        len = read(fd, buff, sizeof(buff));
+    }
+    close(fd);
+    archive_entry_free(entry);
+    if (flname) free(flname); // free!
+    return 0;
+}
+
+/* Lua archive close */
+static void lzip_close(lua_State *L) {
+    struct archive *arch = get_archive_ref(L, 1);
+    const char *msg = "OK";
+    int error_num = 0;
+    if (archive_write_close(arch) != ARCHIVE_OK || archive_write_free(arch) != ARCHIVE_OK) {// error check!
+        msg = archive_error_string(arch);
+        error_num = archive_errno(arch);
+    }
+    lua_pushnumber(L, error_num);
+    lua_pushstring(L, (char *) msg);
+}
+
+static void lzip_add(lua_State *L) {
+    struct archive *arch = get_archive_ref(L, 1);
+    char *filepath = luaL_check_string(L, 2);
+
+    // path relative, inside zip
+    lua_Object lobj = lua_getparam(L, 3);
+    char *filedest  = lua_getstring(L, lobj);
+
+    larchive_write_file(arch, filepath, filedest);
+
+}
+
+
 static struct luaL_reg larchive[] = {
     {"archive_extract", larchive_extract},
+    {"zip_open", lzip_open},
+    {"zip_add", lzip_add},
+    {"zip_close", lzip_close}
 };
 
 int LUA_LIBRARY lua_larchiveopen(lua_State *L) {
