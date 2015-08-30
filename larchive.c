@@ -188,14 +188,18 @@ static void lzip_open(lua_State *L) {
     lua_pushuserdata(L, arch); // new file
 }
 
-static int larchive_write_file(struct archive *arch, char *filename, char *filedest) {
+static struct archive_st larchive_write_file(struct archive *arch, char *filename, char *filedest) {
     struct stat st;
     char buff[8192];
     struct archive_entry *entry;
+    struct archive_st arch_st;
     int len;
     int fd;
 
     stat(filename, &st);
+
+    arch_st.msg = "OK";
+    arch_st.code = 0;
 
     char *flname = NULL;
     char *zip_basename = NULL;
@@ -203,11 +207,15 @@ static int larchive_write_file(struct archive *arch, char *filename, char *filed
     if (!filedest) {
         flname = string_copy(filename);
         if (!flname) {
-            return -1;
+            arch_st.code = -1;
+            arch_st.msg = "out of memory.";
+            return arch_st;
         }
         zip_basename = basename(flname);
         if (!zip_basename) {
-            return -1;
+            arch_st.code = -1;
+            arch_st.msg = "out of memory.";
+            return arch_st;
         }
     } else {
         zip_basename = filedest;
@@ -221,7 +229,9 @@ static int larchive_write_file(struct archive *arch, char *filename, char *filed
 
     if ((fd = open(filename, O_RDONLY | O_BINARY)) == -1) {
         if (flname) free(flname); // free!
-        return -1;
+        arch_st.code = errno;
+        arch_st.msg = strerror(errno);
+        return arch_st;
     }
     len = read(fd, buff, sizeof(buff));
 
@@ -232,7 +242,7 @@ static int larchive_write_file(struct archive *arch, char *filename, char *filed
     close(fd);
     archive_entry_free(entry);
     if (flname) free(flname); // free!
-    return 0;
+    return arch_st;
 }
 
 /* Lua archive close */
@@ -256,7 +266,10 @@ static void lzip_add(lua_State *L) {
     lua_Object lobj = lua_getparam(L, 3);
     char *filedest  = lua_getstring(L, lobj);
 
-    larchive_write_file(arch, filepath, filedest);
+    struct archive_st arch_st = larchive_write_file(arch, filepath, filedest);
+
+    lua_pushnumber(L, arch_st.code);
+    lua_pushstring(L, arch_st.msg);
 }
 
 
