@@ -176,6 +176,11 @@ static void lzip_open(lua_State *L) {
     archive_write_add_filter_lzip(arch);
     archive_write_set_format_zip(arch);
 
+    if (mkdirs(filepath, UNZIP_DMODE)) {  // base dir to zip
+        lua_pushnumber(L, -1);
+        lua_pushstring(L, "creating base directory");
+        return; // fatal error
+    }
     if (archive_write_open_filename(arch, filepath) != ARCHIVE_OK) {
         const char *error_string = archive_error_string(arch);
         int error_num = archive_errno(arch);
