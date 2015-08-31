@@ -110,7 +110,7 @@ static void larchive_extract(lua_State *L) {
         lua_pushstring(L, (char *) arch_st.msg);
         return; // fatal error
     }
-    if ((retval = archive_read_open_filename(arch, filename, 10240)) != 0) {
+    if ((retval = archive_read_open_filename(arch, filename, 10240)) != ARCHIVE_OK) {
         arch_st.msg = archive_error_string(arch);
         arch_st.code = LARCHIVE_ERROR;
 
