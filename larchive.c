@@ -99,11 +99,11 @@ static void larchive_extract(lua_State *L) {
     archive_write_disk_set_standard_lookup(arch_writer);
 
     // initial state
-    arch_st.code = ARCHIVE_EXT_UNDEFINED;
-    arch_st.msg  = "undefined";
+    arch_st.code = LARCHIVE_NOERROR;
+    arch_st.msg  = LARCHIVE_OK;
 
     if (mkdirs(basedir, UNZIP_DMODE)) {
-        arch_st.code = ARCHIVE_EXT_ERROR;
+        arch_st.code = LARCHIVE_ERROR;
         arch_st.msg = "creating base directory";
         // lua push status
         lua_pushnumber(L, arch_st.code);
@@ -112,7 +112,7 @@ static void larchive_extract(lua_State *L) {
     }
     if ((retval = archive_read_open_filename(arch, filename, 10240)) != 0) {
         arch_st.msg = archive_error_string(arch);
-        arch_st.code = ARCHIVE_EXT_ERROR;
+        arch_st.code = LARCHIVE_ERROR;
 
         // lua push status
         lua_pushnumber(L, arch_st.code);
@@ -122,8 +122,8 @@ static void larchive_extract(lua_State *L) {
     while (1) {
         retval = archive_read_next_header(arch, &entry);
         if (retval == ARCHIVE_EOF) {
-            arch_st.code = ARCHIVE_EXT_SUCCESS;
-            arch_st.msg = "OK";
+            arch_st.code = LARCHIVE_NOERROR;
+            arch_st.msg = LARCHIVE_OK;
             break;
         }
         if (retval < ARCHIVE_OK) {
@@ -134,10 +134,9 @@ static void larchive_extract(lua_State *L) {
             arch_st.code = retval;
             break;
         }
-
         archive_entry_change_dir(basedir, arch, entry);
-
         retval = archive_write_header(arch_writer, entry);
+
         if (retval < ARCHIVE_OK) {
             fprintf(stderr, "%s\n", archive_error_string(arch_writer));
         }
@@ -169,7 +168,7 @@ static void lzip_open(lua_State *L) {
     struct archive *arch;
 
     if (!(arch = archive_write_new())) {
-        lua_pushnumber(L, -1);
+        lua_pushnumber(L, LARCHIVE_ERROR);
         lua_pushstring(L, "unable to start a new instance of zip.");
         return; // fatal error
     }
@@ -177,7 +176,7 @@ static void lzip_open(lua_State *L) {
     archive_write_set_format_zip(arch);
 
     if (mkdirs(filepath, UNZIP_DMODE)) {  // base dir to zip
-        lua_pushnumber(L, -1);
+        lua_pushnumber(L, LARCHIVE_ERROR);
         lua_pushstring(L, "creating base directory");
         return; // fatal error
     }
@@ -189,7 +188,7 @@ static void lzip_open(lua_State *L) {
         lua_pushstring(L, (char *) error_string);
         return; // fatal error
     }
-    lua_pushnumber(L, 0);
+    lua_pushnumber(L, LARCHIVE_NOERROR);
     lua_pushuserdata(L, arch); // new file
 }
 
@@ -203,8 +202,8 @@ static struct archive_st larchive_write_file(struct archive *arch, char *filenam
 
     stat(filename, &st);
 
-    arch_st.msg = "OK";
-    arch_st.code = 0;
+    arch_st.msg = LARCHIVE_OK;
+    arch_st.code = LARCHIVE_NOERROR;
 
     char *flname = NULL;
     char *zip_basename = NULL;
@@ -212,13 +211,13 @@ static struct archive_st larchive_write_file(struct archive *arch, char *filenam
     if (!filedest) {
         flname = string_copy(filename);
         if (!flname) {
-            arch_st.code = -1;
+            arch_st.code = LARCHIVE_ERROR;
             arch_st.msg = "out of memory.";
             return arch_st;
         }
         zip_basename = basename(flname);
         if (!zip_basename) {
-            arch_st.code = -1;
+            arch_st.code = LARCHIVE_ERROR;
             arch_st.msg = "out of memory.";
             return arch_st;
         }
@@ -253,8 +252,8 @@ static struct archive_st larchive_write_file(struct archive *arch, char *filenam
 /* Lua archive close */
 static void lzip_close(lua_State *L) {
     struct archive *arch = get_archive_ref(L, 1);
-    const char *msg = "OK";
-    int error_num = 0;
+    const char *msg = LARCHIVE_OK;
+    int error_num = LARCHIVE_NOERROR;
 
     int close_code = archive_write_close(arch);
     int free_code = archive_write_free(arch);

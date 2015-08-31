@@ -17,10 +17,9 @@
 #define LUA_LIBRARY __attribute__((visibility("default")))
 #endif
 
-#define ARCHIVE_EXT_ERROR      0
-#define ARCHIVE_EXT_SUCCESS    1
-#define ARCHIVE_EXT_UNDEFINED -1
-
+#define LARCHIVE_NOERROR 0
+#define LARCHIVE_ERROR   1
+#define LARCHIVE_OK "OK"
 
 struct archive_st {
     int code;
