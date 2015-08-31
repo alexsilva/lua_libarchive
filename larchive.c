@@ -3,11 +3,12 @@
 //
 
 #include <lauxlib.h>
-#include <archive.h>
 #include <stdlib.h>
 #ifdef __linux__
 #include <linux/limits.h>
+#include <time.h>
 #endif
+#include <archive.h>
 #ifndef lua_next
 #include "lapi_missing.h"
 #endif
